@@ -1953,7 +1953,7 @@ INT wifi_hal_getScanResults(wifi_radio_index_t index, wifi_channel_t *channel, w
     }
 
     if (found == false) {
-        wifi_hal_error_print("%s:%d: Could not find sta interface on radio index: %d, start scan failure\n",
+        wifi_hal_info_print("%s:%d: Could not find sta interface on radio index: %d, start scan failure\n",
             __func__, __LINE__, index);
         return RETURN_ERR;
     }
@@ -1992,10 +1992,15 @@ INT wifi_hal_getScanResults(wifi_radio_index_t index, wifi_channel_t *channel, w
         *num_bss = 0;
         return RETURN_ERR;
     }
+
+    wifi_hal_info_print("%s:%d: Total BSS entries: %d\n",
+                    __func__, __LINE__, total_count);
+
     *bss = tmp_bss;
     *num_bss = total_count;
-
+    unsigned int copied = 0;
     scan_info = hash_map_get_first(interface->scan_info_map);
+/*
     while (scan_info != NULL) {
         if (freq == 0) {
             memcpy(tmp_bss, scan_info, sizeof(wifi_bss_info_t));
@@ -2004,7 +2009,22 @@ INT wifi_hal_getScanResults(wifi_radio_index_t index, wifi_channel_t *channel, w
                 memcpy(tmp_bss, scan_info, sizeof(wifi_bss_info_t));
             }
         }
+*/
+     
+    while (scan_info != NULL) {
+        if (freq == 0 || freq == scan_info->freq) {
+        // Print SSID and BSSID only
+        char bssid_str[18];
+        const uint8_t *b = (const uint8_t *)&scan_info->bssid;
+        snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 b[0], b[1], b[2], b[3], b[4], b[5]);
+        wifi_hal_info_print("BSS[%u]: SSID='%s', BSSID=%s\n",
+                            copied, scan_info->ssid, bssid_str);
+        memcpy(tmp_bss, scan_info, sizeof(wifi_bss_info_t));
         tmp_bss++;
+        copied++;
+        if (copied == total_count) break;
+    }
         scan_info = hash_map_get_next(interface->scan_info_map, scan_info);
     }
     pthread_mutex_unlock(&interface->scan_info_mutex);
@@ -2395,7 +2415,7 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
     ssid_t  ssid_list[8];
     int op_class, freq_num = 0;
 
-    wifi_hal_stats_dbg_print("%s:%d: index: %d mode: %d dwell time: %d\n", __func__, __LINE__, index,
+    wifi_hal_info_print("%s:%d: index: %d mode: %d dwell time: %d\n", __func__, __LINE__, index,
         scan_mode, dwell_time);
 
     RADIO_INDEX_ASSERT(index);
@@ -2404,7 +2424,7 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
         wifi_hal_stats_error_print("%s:%d: invalide dwell time: %d\n", __func__, __LINE__, dwell_time);
         return WIFI_HAL_INVALID_ARGUMENTS;
     }
-
+      
     radio = get_radio_by_rdk_index(index);
     if (radio == NULL) {
         wifi_hal_stats_error_print("%s:%d:Could not find radio for index: %d\n", __func__, __LINE__, index);
@@ -2424,7 +2444,7 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
     }
 
     if (found == false) {
-        wifi_hal_stats_error_print("%s:%d:Could not find sta interface on radio index: %d, start scan failure\n", 
+        wifi_hal_info_print("%s:%d:Could not find sta interface on radio index: %d, start scan failure\n", 
             __func__, __LINE__, index);
         return RETURN_ERR;
     }
@@ -2441,15 +2461,15 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
     vap = &interface->vap_info;
     radio_param = &radio->oper_param;
 
-    if (scan_mode == WIFI_RADIO_SCAN_MODE_ONCHAN) {
+        if (scan_mode == WIFI_RADIO_SCAN_MODE_ONCHAN) {
         num = 1;
     } else if (scan_mode == WIFI_RADIO_SCAN_MODE_OFFCHAN) {
         if ((num == 0) || (chan_list == NULL)) {
-            wifi_hal_stats_error_print("%s:%d: Channels not speified for offchannel scan mode\n", __func__, __LINE__);
+            wifi_hal_info_print("%s:%d: Channels not speified for offchannel scan mode\n", __func__, __LINE__);
             return RETURN_ERR; 
         }
     } else {
-        wifi_hal_stats_error_print("%s:%d: Incorrect scan mode\n", __func__, __LINE__);
+        wifi_hal_info_print("%s:%d: Incorrect scan mode\n", __func__, __LINE__);
         return RETURN_ERR; 
     }
 
@@ -2461,7 +2481,7 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
             radio_param->channel : chan_list[i]; 
 
         if ((op_class = get_op_class_from_radio_params(&param)) == -1) {
-            wifi_hal_stats_error_print("%s:%d: Invalid channel %d\n", __func__, __LINE__, param.channel);
+            wifi_hal_info_print("%s:%d: Invalid channel %d\n", __func__, __LINE__, param.channel);
             continue;
         }
 
@@ -2479,9 +2499,13 @@ INT wifi_hal_startScan(wifi_radio_index_t index, wifi_neighborScanMode_t scan_mo
         wifi_hal_stats_error_print("%s:%d: No valid channels\n", __func__, __LINE__);
         return RETURN_ERR;
     }
+    wifi_hal_info_print("===== print scan details =====\n");
+    wifi_hal_info_print("%s:%d:interface name:%s country:%s\n", __func__, __LINE__, 
+    interface->name, country);
+    wifi_hal_info_print("%s:%d: ssid is %s\n",__func__, __LINE__,vap->u.sta_info.ssid);
 
     strcpy(ssid_list[0], vap->u.sta_info.ssid);
-    wifi_hal_stats_info_print("%s:%d: Scan Frequencies:%s \n", __func__, __LINE__, chan_list_str);
+    wifi_hal_info_print("%s:%d: Scan Frequencies:%s \n", __func__, __LINE__, chan_list_str);
 
     pthread_mutex_lock(&interface->scan_info_mutex);
     hash_map_cleanup(interface->scan_info_map);
