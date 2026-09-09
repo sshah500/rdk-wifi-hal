@@ -2314,14 +2314,14 @@ wifi_dppProcessReconfigAuthResponse(wifi_device_dpp_context_t *dpp_ctx)
         return RETURN_ERR;
     }
 
-    printf("Responder nonce: ");
-    print_hex_dump(tlv->length, tlv->value);
-     if (tlv->length != instance->noncelen) {
+     if (tlv->length != (unsigned int)instance->noncelen || tlv->length > sizeof(instance->responder_nonce)) {
         wifi_dpp_dbg_print("%s:%d responder nonce length mismatch %u/%u\n", __func__, __LINE__,
             tlv->length, instance->noncelen);
         dpp_ctx->enrollee_status = RESPONDER_STATUS_AUTH_FAILURE;
         return RETURN_ERR;
     }
+    printf("Responder nonce: ");
+    print_hex_dump(tlv->length, tlv->value);
     memcpy(instance->responder_nonce, tlv->value, tlv->length);
 
     if ((tlv = get_tlv(primary, wifi_dpp_attrib_id_responder_cap, decrypted_len)) == NULL) {
